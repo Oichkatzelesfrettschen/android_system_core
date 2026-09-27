@@ -111,6 +111,27 @@ static void wait_for_user_action(const debugger_request_t &request) {
   ALOGI("debuggerd resuming process %d", request.pid);
 }
 
+// /proc/<tid>/status's "Uid:" and "Gid:" lines each carry four tab-separated
+// fields -- real, effective, saved-set and filesystem -- in that order (see
+// task_state() in fs/proc/array.c). The kernel's SO_PEERCRED implementation
+// (cred_to_ucred() in net/core/scm.c) reports the peer's *effective* uid/gid,
+// not the real ones, so a caller comparing SO_PEERCRED's ucred against this
+// function's output must read the same (effective) field or the two values
+// legitimately diverge for any process whose real and effective credentials
+// differ, such as Zygote mid-preload (ZygoteInit.preloadClasses() drops only
+// the effective uid/gid via Os.setreuid()/Os.setregid() while running every
+// preloaded class's static initializer, and restores them from a try/finally
+// that a native abort() during that window never reaches).
+static uid_t nth_status_field(const char* line, int field_index) {
+  const char* p = line;
+  for (int i = 0; i < field_index && *p; ++i) {
+    p = strchr(p, '\t');
+    if (!p) return 0;
+    ++p;
+  }
+  return static_cast<uid_t>(atoi(p));
+}
+
 static int get_process_info(pid_t tid, pid_t* out_pid, uid_t* out_uid, uid_t* out_gid) {
   char path[64];
   snprintf(path, sizeof(path), "/proc/%d/status", tid);
@@ -128,10 +149,12 @@ static int get_process_info(pid_t tid, pid_t* out_pid, uid_t* out_uid, uid_t* ou
       *out_pid = atoi(line + 6);
       fields |= 1;
     } else if (len > 5 && !memcmp(line, "Uid:\t", 5)) {
-      *out_uid = atoi(line + 5);
+      // Field 1 (0-indexed): effective uid, matching SO_PEERCRED.
+      *out_uid = nth_status_field(line + 5, 1);
       fields |= 2;
     } else if (len > 5 && !memcmp(line, "Gid:\t", 5)) {
-      *out_gid = atoi(line + 5);
+      // Field 1 (0-indexed): effective gid, matching SO_PEERCRED.
+      *out_gid = nth_status_field(line + 5, 1);
       fields |= 4;
     }
   }
