@@ -39,6 +39,7 @@ Result<void> check_mkdir(const BuiltinArguments& args);
 Result<void> check_mount_all(const BuiltinArguments& args);
 Result<void> check_restorecon(const BuiltinArguments& args);
 Result<void> check_restorecon_recursive(const BuiltinArguments& args);
+Result<void> check_prepare_vendor_data(const BuiltinArguments& args);
 Result<void> check_setprop(const BuiltinArguments& args);
 Result<void> check_setrlimit(const BuiltinArguments& args);
 Result<void> check_swapon_all(const BuiltinArguments& args);

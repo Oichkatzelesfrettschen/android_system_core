@@ -161,6 +161,7 @@ libinit_cc_defaults {
         },
     },
     static_libs: [
+        "libvold_legacy_vendor_data",
         "libavb",
         "libavf_cc_flags",
         "libbootloader_message",
@@ -598,6 +599,7 @@ cc_defaults {
         "-Werror",
     ],
     static_libs: [
+        "libvold_legacy_vendor_data",
         "libbase",
         "libselinux",
         "libpropertyinfoserializer",
