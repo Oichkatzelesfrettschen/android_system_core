@@ -27,6 +27,7 @@
 #include <initializer_list>
 
 extern "C" android_namespace_t* android_get_exported_namespace(const char*);
+extern "C" void* android_get_loaded_library_by_soname(const char*, android_namespace_t*);
 
 namespace {
 
@@ -63,11 +64,13 @@ int android_is_in_vendor_process() {
 
 void* android_load_sphal_library(const char* name, int flag) {
     VendorNamespace vendor_namespace = get_vendor_namespace();
+    if (flag == ANDROID_SPHAL_LIBRARY_LOADED_ONLY) {
+        return android_get_loaded_library_by_soname(name, vendor_namespace.ptr);
+    }
     if (vendor_namespace.ptr != nullptr) {
-        const android_dlextinfo dlextinfo = {
-                .flags = ANDROID_DLEXT_USE_NAMESPACE,
-                .library_namespace = vendor_namespace.ptr,
-        };
+        android_dlextinfo dlextinfo = {};
+        dlextinfo.flags = ANDROID_DLEXT_USE_NAMESPACE;
+        dlextinfo.library_namespace = vendor_namespace.ptr;
         void* handle = android_dlopen_ext(name, flag, &dlextinfo);
         if (!handle) {
             ALOGE("Could not load %s from %s namespace: %s.", name, vendor_namespace.name,
