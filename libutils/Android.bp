@@ -344,6 +344,7 @@ cc_test {
         android: {
             srcs: [
                 "SystemClock_test.cpp",
+                "Sysprop_test.cpp",
             ],
             shared_libs: [
                 "libbase",
@@ -353,6 +354,8 @@ cc_test {
                 "libunwindstack",
                 "libutils",
                 "libutilscallstack",
+                "libvndksupport",
+                "libdl_android",
                 "libz",
             ],
         },

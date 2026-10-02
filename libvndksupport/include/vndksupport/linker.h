@@ -23,7 +23,18 @@ extern "C" {
 int android_is_in_vendor_process() __attribute__((
         deprecated("This function would not give exact result if VNDK is deprecated.")));
 
+// The loaded-only operation accepts a SONAME and acquires an existing instance
+// without filesystem lookup. Use the flag alone, rather than combining RTLD flags.
+enum { ANDROID_SPHAL_LIBRARY_LOADED_ONLY = 0x10000000 };
+
 void* android_load_sphal_library(const char* name, int flag);
+
+// Acquires an already loaded SONAME in the SP-HAL namespace or its permitted links.
+// Processes without an exported vendor namespace use the caller namespace.
+// Misses leave dlerror unchanged. Release each hit with android_unload_sphal_library.
+static inline void* android_get_loaded_sphal_library(const char* soname) {
+    return android_load_sphal_library(soname, ANDROID_SPHAL_LIBRARY_LOADED_ONLY);
+}
 
 int android_unload_sphal_library(void* handle);
 

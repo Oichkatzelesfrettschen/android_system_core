@@ -71,6 +71,7 @@ void add_sysprop_change_callback(sysprop_change_callback, int) {}
 #endif
 
 #if defined(__ANDROID__) && !defined(__ANDROID_RECOVERY__)
+// The exported getter retains its reference so the returned callback stays mapped.
 void (*get_report_sysprop_change_func())() {
     void (*func)() = nullptr;
     void* handle = android_load_sphal_library("libutils.so", RTLD_NOW);
@@ -86,13 +87,15 @@ void report_sysprop_change() {
     do_report_sysprop_change();
 
 #if defined(__ANDROID__) && !defined(__ANDROID_RECOVERY__)
-    // libutils.so is double loaded; from the default namespace and from the
-    // 'sphal' namespace. Redirect the sysprop change event to the other instance
-    // of libutils.so loaded in the 'sphal' namespace so that listeners attached
-    // to that instance is also notified with this event.
-    static auto func = get_report_sysprop_change_func();
-    if (func != nullptr) {
-        (*func)();
+    // Recheck each event so a later SP-HAL load receives notifications. The handle
+    // keeps the other libutils instance mapped for the duration of its callbacks.
+    void* handle = android_get_loaded_sphal_library("libutils.so");
+    if (handle != nullptr) {
+        auto func = reinterpret_cast<void (*)()>(dlsym(handle, "do_report_sysprop_change"));
+        if (func != nullptr && func != do_report_sysprop_change) {
+            func();
+        }
+        android_unload_sphal_library(handle);
     }
 #endif
 }
