@@ -69,6 +69,7 @@
 #include <selinux/label.h>
 #include <selinux/selinux.h>
 #include <system/thread_defs.h>
+#include <vold/LegacyVendorData.h>
 
 #include "action_manager.h"
 #include "apex_init_util.h"
@@ -800,6 +801,34 @@ static Result<void> do_symlink(const BuiltinArguments& args) {
     return {};
 }
 
+// Init owns the core data root and can relabel vendor directory contents.
+static Result<void> do_prepare_vendor_data(const BuiltinArguments& args) {
+    if (!android::vold::IsLegacyVendorMigrationPathPair(args[1], args[2])) {
+        return Error() << "Invalid legacy vendor data path pair";
+    }
+    android::vold::LegacyVendorOwnership ownership;
+    if (!android::vold::ParseLegacyVendorOwnership(args[3], args[4], args[5], &ownership)) {
+        return Error() << "Invalid legacy vendor data ownership";
+    }
+    if (!IsLegalPropertyName(args[6]) || !StartsWith(args[6], "sys.") ||
+        !android::base::EndsWith(args[6], ".ready")) {
+        return Error() << "Vendor readiness requires a system ready property";
+    }
+    std::string failure;
+    if (!android::vold::PrepareLegacyVendorDirectory(args[1], args[2], ownership, &failure)) {
+        return Error() << failure;
+    }
+    if (selinux_android_restorecon(args[2].c_str(), SELINUX_ANDROID_RESTORECON_RECURSE |
+                                                    SELINUX_ANDROID_RESTORECON_FORCE) != 0 ||
+        selinux_android_restorecon(args[1].c_str(), SELINUX_ANDROID_RESTORECON_FORCE) != 0) {
+        return ErrnoError() << "Legacy vendor data relabel failed";
+    }
+    if (!SetProperty(args[6], "1")) {
+        return Error() << "Legacy vendor data ready notification failed";
+    }
+    return {};
+}
+
 static Result<void> do_rm(const BuiltinArguments& args) {
     if (unlink(args[1].c_str()) < 0) {
         return ErrnoError() << "unlink() failed";
@@ -1339,6 +1368,7 @@ const BuiltinFunctionMap& GetBuiltinFunctionMap() {
         {"swapon_all",              {0,     1,    {false,  do_swapon_all}}},
         {"swapoff",                 {1,     1,    {false,  do_swapoff}}},
         {"enter_default_mount_ns",  {0,     0,    {false,  do_enter_default_mount_ns}}},
+        {"prepare_vendor_data",     {6,     6,    {false,  do_prepare_vendor_data}}},
         {"symlink",                 {2,     2,    {true,   do_symlink}}},
         {"sysclktz",                {1,     1,    {false,  do_sysclktz}}},
         {"trigger",                 {1,     1,    {false,  do_trigger}}},

@@ -29,6 +29,7 @@
 #include <android-base/parseint.h>
 #include <android-base/strings.h>
 #include <property_info_parser/property_info_parser.h>
+#include <vold/LegacyVendorData.h>
 
 #include "builtin_arguments.h"
 #include "interface_utils.h"
@@ -175,6 +176,23 @@ Result<void> check_restorecon(const BuiltinArguments& args) {
 
 Result<void> check_restorecon_recursive(const BuiltinArguments& args) {
     return check_restorecon(std::move(args));
+}
+
+Result<void> check_prepare_vendor_data(const BuiltinArguments& args) {
+    if (!args[1].empty() && !args[2].empty() &&
+        !android::vold::IsLegacyVendorMigrationPathPair(args[1], args[2])) {
+        return Error() << "Invalid legacy vendor data path pair";
+    }
+    android::vold::LegacyVendorOwnership ownership;
+    if (!args[3].empty() && !args[4].empty() && !args[5].empty() &&
+        !android::vold::ParseLegacyVendorOwnership(args[3], args[4], args[5], &ownership)) {
+        return Error() << "Invalid legacy vendor data ownership";
+    }
+    if (!args[6].empty() && (!android::base::StartsWith(args[6], "sys.") ||
+                             !android::base::EndsWith(args[6], ".ready"))) {
+        return Error() << "Vendor readiness requires a system ready property";
+    }
+    return check_setprop({{"setprop", args[6], "1"}, args.context});
 }
 
 Result<void> check_setprop(const BuiltinArguments& args) {
